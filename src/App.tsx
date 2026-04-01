@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Terminal, Copy, Database, Code2, 
-  Sparkles, MessageSquare
+  Sparkles, Upload
 } from 'lucide-react';
 
 const App = () => {
-  // --- Gestão de Apps e Requisições ---
   const [apps, setApps] = useState([
     { name: 'AnalisAI', requests: [{ date: '2026-04-01', count: 1, model: 'gemini-3.1-pro-preview' }] }
   ]);
   const [currentAppName, setCurrentAppName] = useState('AnalisAI');
   
   const models = [
-    { name: 'Default (Gemini 3 Flash Preview)', limit: 1500 },
+    { name: 'Padrão (Gemini 3 Flash Preview)', limit: 1500 },
     { name: 'Gemini 3 Flash Preview', limit: 1500 },
     { name: 'Gemini 3.1 Pro Preview', limit: 50 },
     { name: 'Gemini 3.1 Flash Lite Preview', limit: 3000 }
@@ -20,47 +19,53 @@ const App = () => {
   const [selectedModel, setSelectedModel] = useState(models[0]);
   const [rpmCooldown, setRpmCooldown] = useState(0);
 
-  // --- Editor e Prompt ---
-  const [activeTab, setActiveTab] = useState('fix_analisai');
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [chatMessages, setChatMessages] = useState<{role: string, content: string, timestamp: string}[]>([]);
   const [systemLog, setSystemLog] = useState<{timestamp: string, message: string}[]>([]);
+  const editorRef = useRef<HTMLDivElement>(null);
 
-  const currentApp = apps.find(a => a.name === currentAppName) || apps[0];
   const today = '2026-04-01';
+  const currentApp = apps.find(a => a.name === currentAppName) || apps[0];
   const todayRequests = currentApp.requests.find(r => r.date === today) || { date: today, count: 0, model: 'N/A' };
 
-  // --- Funções de Ação ---
-  const handleExecute = (textToCopy: string) => {
-    if (rpmCooldown > 0) return;
+  const handleExecute = () => {
+    if (rpmCooldown > 0 || !editorRef.current) return;
     
-    navigator.clipboard.writeText(textToCopy);
+    const content = editorRef.current.innerHTML;
+    navigator.clipboard.writeText(editorRef.current.innerText);
 
     const now = new Date().toLocaleTimeString();
     
-    // Update tracking
     setApps(prev => prev.map(app => {
       if (app.name === currentAppName) {
-        const todayReq = app.requests.find(r => r.date === today);
-        if (todayReq) {
-          return { ...app, requests: app.requests.map(r => r.date === today ? { ...r, count: r.count + 1, model: selectedModel.name } : r) };
-        } else {
-          return { ...app, requests: [...app.requests, { date: today, count: 1, model: selectedModel.name }] };
-        }
+        return { ...app, requests: app.requests.map(r => r.date === today ? { ...r, count: r.count + 1, model: selectedModel.name } : r) };
       }
       return app;
     }));
 
-    // Update Log
-    setSystemLog(prev => [{timestamp: now, message: `Executado: ${textToCopy.substring(0, 30)}...`}, ...prev]);
+    setSystemLog(prev => [{timestamp: now, message: `Executado: ${editorRef.current!.innerText.substring(0, 30)}...`}, ...prev]);
     setRpmCooldown(30);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        const blob = items[i].getAsFile();
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = document.createElement('img');
+          img.src = event.target?.result as string;
+          img.style.maxWidth = '100%';
+          editorRef.current?.appendChild(img);
+        };
+        reader.readAsDataURL(blob!);
+      }
+    }
   };
 
   return (
     <div className="min-h-screen bg-black text-green-500 p-6 md:p-10 font-mono text-lg">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header Retro */}
         <header className="border border-green-500 p-8 rounded-none backdrop-blur-md">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-6">
@@ -68,9 +73,9 @@ const App = () => {
                 <Terminal className="text-green-500" size={36} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-green-400 uppercase">DESCOMPLICA DEVELOPMENT CONTROL CENTER</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-green-400 uppercase">CENTRAL DE CONTROLE DE DESENVOLVIMENTO</h1>
                 <p className="text-green-700 text-lg font-medium">
-                  SYSTEM_READY • {currentAppName}
+                  SISTEMA_PRONTO • {currentAppName}
                 </p>
               </div>
             </div>
@@ -91,7 +96,6 @@ const App = () => {
           </div>
         </header>
 
-        {/* App Selector & Model */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="border border-green-500 p-4 flex flex-col gap-2">
             <span className="text-sm font-bold text-green-700 uppercase">SELECIONAR_MODELO:</span>
@@ -117,33 +121,24 @@ const App = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Editor & Chat */}
           <div className="lg:col-span-2 space-y-4">
             <div className="border border-green-500 rounded-none overflow-hidden flex flex-col h-[700px]">
-              <div className="flex border-b border-green-500 bg-black">
-                <button onClick={() => setActiveTab('fix_analisai')} className={`px-8 py-5 text-sm font-bold uppercase ${activeTab === 'fix_analisai' ? 'text-black bg-green-500' : 'text-green-700'}`}>
-                  <Sparkles size={18} className="inline mr-3" /> FIX_ANALISAI
-                </button>
-                <button onClick={() => setActiveTab('custom')} className={`px-8 py-5 text-sm font-bold uppercase ${activeTab === 'custom' ? 'text-black bg-green-500' : 'text-green-700'}`}>
-                  <Code2 size={18} className="inline mr-3" /> CUSTOM_CMD
-                </button>
+              <div className="flex border-b border-green-500 bg-black p-4 text-green-700 font-bold uppercase">
+                <Sparkles size={18} className="inline mr-3" /> EDITOR_COMANDOS_ENGENHEIRO
               </div>
 
-              {/* Chat Display (Read-only) */}
-              <div className="flex-1 p-8 bg-black overflow-y-auto border-b border-green-500">
-                <textarea
-                  readOnly
-                  value={activeTab === 'fix_analisai' ? 'ATENÇÃO: Aja como um engenheiro de software sênior...' : customPrompt}
-                  className="w-full h-full bg-transparent resize-none focus:outline-none text-green-500 font-mono text-lg leading-relaxed"
-                />
-              </div>
+              <div 
+                ref={editorRef}
+                contentEditable
+                onPaste={handlePaste}
+                className="flex-1 p-8 bg-black overflow-y-auto text-green-500 font-mono text-lg leading-relaxed focus:outline-none"
+              />
 
-              {/* Input Area */}
-              <div className="p-6 border-t border-green-500 flex justify-between items-center">
+              <div className="p-6 border-t border-green-500 flex gap-4 items-center">
                 <button
-                  onClick={() => handleExecute(activeTab === 'fix_analisai' ? '...' : customPrompt)}
+                  onClick={handleExecute}
                   disabled={rpmCooldown > 0}
-                  className={`flex items-center gap-4 px-10 py-4 font-bold transition-all text-lg ${
+                  className={`flex items-center gap-4 px-10 py-4 font-bold transition-all text-lg w-full justify-center ${
                     rpmCooldown > 0 
                     ? 'bg-green-900 text-green-700' 
                     : 'bg-green-600 hover:bg-green-500 text-black'
@@ -155,11 +150,10 @@ const App = () => {
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-8">
             <div className="border border-green-500 p-8">
               <h3 className="text-sm font-bold text-green-700 uppercase mb-8 flex items-center gap-3">
-                <Database size={20} /> SYSTEM_LOG
+                <Database size={20} /> LOG_SISTEMA
               </h3>
               <div className="space-y-6 text-sm h-[500px] overflow-y-auto">
                 {systemLog.map((log, i) => (
