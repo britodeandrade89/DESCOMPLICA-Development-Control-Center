@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Terminal, Copy, Database, Code2, 
-  Sparkles
+  Sparkles, MessageSquare
 } from 'lucide-react';
 
 const App = () => {
@@ -23,17 +23,22 @@ const App = () => {
   // --- Editor e Prompt ---
   const [activeTab, setActiveTab] = useState('fix_analisai');
   const [customPrompt, setCustomPrompt] = useState('');
+  const [chatMessages, setChatMessages] = useState<{role: string, content: string, timestamp: string}[]>([]);
+  const [systemLog, setSystemLog] = useState<{timestamp: string, message: string}[]>([]);
 
   const currentApp = apps.find(a => a.name === currentAppName) || apps[0];
   const today = '2026-04-01';
   const todayRequests = currentApp.requests.find(r => r.date === today) || { date: today, count: 0, model: 'N/A' };
 
   // --- Funções de Ação ---
-  const handleCopyAndTrack = (textToCopy: string) => {
+  const handleExecute = (textToCopy: string) => {
     if (rpmCooldown > 0) return;
     
     navigator.clipboard.writeText(textToCopy);
 
+    const now = new Date().toLocaleTimeString();
+    
+    // Update tracking
     setApps(prev => prev.map(app => {
       if (app.name === currentAppName) {
         const todayReq = app.requests.find(r => r.date === today);
@@ -46,6 +51,8 @@ const App = () => {
       return app;
     }));
 
+    // Update Log
+    setSystemLog(prev => [{timestamp: now, message: `Executado: ${textToCopy.substring(0, 30)}...`}, ...prev]);
     setRpmCooldown(30);
   };
 
@@ -61,7 +68,7 @@ const App = () => {
                 <Terminal className="text-green-500" size={36} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-green-400 uppercase">DEV_CONTROL_CENTER</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-green-400 uppercase">DESCOMPLICA DEVELOPMENT CONTROL CENTER</h1>
                 <p className="text-green-700 text-lg font-medium">
                   SYSTEM_READY • {currentAppName}
                 </p>
@@ -70,11 +77,11 @@ const App = () => {
 
             <div className="flex gap-8 mt-4 md:mt-0 border border-green-800 p-6">
               <div className="text-right">
-                <p className="text-xs text-green-700 font-bold uppercase">DATE</p>
+                <p className="text-xs text-green-700 font-bold uppercase">DATA</p>
                 <p className="text-xl font-bold text-green-400">{today}</p>
               </div>
               <div className="text-right border-l border-green-800 pl-8">
-                <p className="text-xs text-green-700 font-bold uppercase">DAILY_REQ / LIMIT</p>
+                <p className="text-xs text-green-700 font-bold uppercase">REQ_DIÁRIAS / LIMITE</p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-black text-green-400">{todayRequests.count}</span>
                   <span className="text-2xl text-green-700">/ {selectedModel.limit}</span>
@@ -87,7 +94,7 @@ const App = () => {
         {/* App Selector & Model */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="border border-green-500 p-4 flex flex-col gap-2">
-            <span className="text-sm font-bold text-green-700 uppercase">SELECT_MODEL:</span>
+            <span className="text-sm font-bold text-green-700 uppercase">SELECIONAR_MODELO:</span>
             <select 
               value={selectedModel.name} 
               onChange={(e) => setSelectedModel(models.find(m => m.name === e.target.value) || models[0])}
@@ -97,7 +104,7 @@ const App = () => {
             </select>
           </div>
           <div className="border border-green-500 p-4 flex flex-col gap-2">
-            <span className="text-sm font-bold text-green-700 uppercase">ACTIVE_APP:</span>
+            <span className="text-sm font-bold text-green-700 uppercase">APP_ATIVO:</span>
             <select 
               value={currentAppName} 
               onChange={(e) => setCurrentAppName(e.target.value)}
@@ -110,9 +117,9 @@ const App = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Editor */}
+          {/* Editor & Chat */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="border border-green-500 rounded-none overflow-hidden flex flex-col h-[600px]">
+            <div className="border border-green-500 rounded-none overflow-hidden flex flex-col h-[700px]">
               <div className="flex border-b border-green-500 bg-black">
                 <button onClick={() => setActiveTab('fix_analisai')} className={`px-8 py-5 text-sm font-bold uppercase ${activeTab === 'fix_analisai' ? 'text-black bg-green-500' : 'text-green-700'}`}>
                   <Sparkles size={18} className="inline mr-3" /> FIX_ANALISAI
@@ -122,17 +129,19 @@ const App = () => {
                 </button>
               </div>
 
-              <div className="flex-1 p-8 bg-black overflow-y-auto">
+              {/* Chat Display (Read-only) */}
+              <div className="flex-1 p-8 bg-black overflow-y-auto border-b border-green-500">
                 <textarea
+                  readOnly
                   value={activeTab === 'fix_analisai' ? 'ATENÇÃO: Aja como um engenheiro de software sênior...' : customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
                   className="w-full h-full bg-transparent resize-none focus:outline-none text-green-500 font-mono text-lg leading-relaxed"
                 />
               </div>
 
+              {/* Input Area */}
               <div className="p-6 border-t border-green-500 flex justify-between items-center">
                 <button
-                  onClick={() => handleCopyAndTrack(activeTab === 'fix_analisai' ? '...' : customPrompt)}
+                  onClick={() => handleExecute(activeTab === 'fix_analisai' ? '...' : customPrompt)}
                   disabled={rpmCooldown > 0}
                   className={`flex items-center gap-4 px-10 py-4 font-bold transition-all text-lg ${
                     rpmCooldown > 0 
@@ -152,8 +161,10 @@ const App = () => {
               <h3 className="text-sm font-bold text-green-700 uppercase mb-8 flex items-center gap-3">
                 <Database size={20} /> SYSTEM_LOG
               </h3>
-              <div className="space-y-6 text-sm">
-                <p>AnalisAI: {todayRequests.count} req today</p>
+              <div className="space-y-6 text-sm h-[500px] overflow-y-auto">
+                {systemLog.map((log, i) => (
+                  <p key={i}>[{log.timestamp}] {log.message}</p>
+                ))}
               </div>
             </div>
           </div>
