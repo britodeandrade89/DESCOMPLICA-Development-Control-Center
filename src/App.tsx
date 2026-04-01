@@ -6,7 +6,20 @@ import {
 
 const App = () => {
   const [apps, setApps] = useState([
-    { name: 'AnalisAI', requests: [{ date: '2026-04-01', count: 1, model: 'gemini-3.1-pro-preview' }] }
+    { name: 'ABFIT', requests: [] },
+    { 
+      name: 'AnalisAI', 
+      requests: [
+        { date: '2026-04-01', count: 1, model: 'gemini-3.1-pro-preview', command: 'to clicando na aba de bet manager e o app nao tá carregando!!!!' },
+        { date: '2026-04-01', count: 1, model: 'gemini-3.1-pro-preview', command: 'a aba do bet manager não ta funcionano! faça o app voltar funcionar de maneira direita e total!!!' }
+      ] 
+    },
+    { 
+      name: 'BETMANAGER', 
+      requests: [
+        { date: '2026-04-01', count: 1, model: 'gemini-3.1-pro-preview', command: 'carregue o app pq ele nao ta querendo funcionar' }
+      ] 
+    }
   ]);
   const [currentAppName, setCurrentAppName] = useState('AnalisAI');
   
@@ -24,25 +37,54 @@ const App = () => {
 
   const today = '2026-04-01';
   const currentApp = apps.find(a => a.name === currentAppName) || apps[0];
-  const todayRequests = currentApp.requests.find(r => r.date === today) || { date: today, count: 0, model: 'N/A' };
+  const todayRequests = apps.reduce((total, app) => total + app.requests.filter(r => r.date === today).length, 0);
 
   const handleExecute = () => {
     if (rpmCooldown > 0 || !editorRef.current) return;
     
-    const content = editorRef.current.innerHTML;
-    navigator.clipboard.writeText(editorRef.current.innerText);
+    const text = editorRef.current.innerText;
+    
+    // Processamento do comando
+    let targetApp = currentAppName;
+    let targetModel = selectedModel.name;
+
+    // Detectar novo app
+    if (text.toLowerCase().includes('novo app') || text.toLowerCase().includes('app novo')) {
+        const appName = prompt("Digite o nome do novo app:");
+        if (appName) {
+            setApps(prev => [...prev, { name: appName.toUpperCase(), requests: [] }]);
+            targetApp = appName.toUpperCase();
+        }
+    }
+
+    // Detectar App
+    ['ABFIT', 'ANALISAI', 'BETMANAGER'].forEach(app => {
+        if (text.toUpperCase().includes(app)) targetApp = app;
+    });
+
+    // Detectar Modelo
+    models.forEach(m => {
+        if (text.toLowerCase().includes(m.name.toLowerCase())) targetModel = m.name;
+    });
+
+    // Atualizar estado
+    setCurrentAppName(targetApp);
+    setSelectedModel(models.find(m => m.name === targetModel) || models[0]);
+
+    navigator.clipboard.writeText(text);
 
     const now = new Date().toLocaleTimeString();
     
     setApps(prev => prev.map(app => {
-      if (app.name === currentAppName) {
-        return { ...app, requests: app.requests.map(r => r.date === today ? { ...r, count: r.count + 1, model: selectedModel.name } : r) };
+      if (app.name === targetApp) {
+        return { ...app, requests: [...app.requests, { date: today, count: 1, model: targetModel, command: text }] };
       }
       return app;
     }));
 
-    setSystemLog(prev => [{timestamp: now, message: `Executado: ${editorRef.current!.innerText.substring(0, 30)}...`}, ...prev]);
+    setSystemLog(prev => [{timestamp: now, message: `Executado em ${targetApp}: ${text.substring(0, 30)}...`}, ...prev]);
     setRpmCooldown(30);
+    editorRef.current.innerText = ''; // Limpar editor
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -155,9 +197,22 @@ const App = () => {
               <h3 className="text-sm font-bold text-green-700 uppercase mb-8 flex items-center gap-3">
                 <Database size={20} /> LOG_SISTEMA
               </h3>
-              <div className="space-y-6 text-sm h-[500px] overflow-y-auto">
+              <div className="space-y-6 text-sm h-[200px] overflow-y-auto">
                 {systemLog.map((log, i) => (
                   <p key={i}>[{log.timestamp}] {log.message}</p>
+                ))}
+              </div>
+            </div>
+            <div className="border border-green-500 p-8">
+              <h3 className="text-sm font-bold text-green-700 uppercase mb-8 flex items-center gap-3">
+                <Code2 size={20} /> HISTÓRICO_{currentAppName}
+              </h3>
+              <div className="space-y-6 text-sm h-[300px] overflow-y-auto">
+                {currentApp.requests.map((req, i) => (
+                  <div key={i} className="border-b border-green-900 pb-2">
+                    <p className="text-green-400 font-bold">{req.model}</p>
+                    <p className="text-green-500">{req.command}</p>
+                  </div>
                 ))}
               </div>
             </div>
